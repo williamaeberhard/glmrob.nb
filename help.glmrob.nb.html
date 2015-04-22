@@ -1,0 +1,107 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><title>R: Robust estimations for negative binomial GLM</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<link rel="stylesheet" type="text/css" href="R.css">
+</head><body>
+
+<table width="100%" summary="page for glmrob.nb"><tr><td>glmrob.nb</td><td align="right">R Documentation</td></tr></table>
+
+<h2>Robust estimations for negative binomial GLM</h2>
+
+<h3>Description</h3>
+
+<p><code>glmrob.nb</code> is used to fit a negative binomial model by robust methods. Two approaches are implemented: The PR approach (for <code>bounding.func="T/T"</code> and <code>bounding.func="HA/HA"</code>) achieves robustness in the response by applying a bounded function on the Pearson residuals while the UD approach (for <code>bounding.func="BY/T"</code>) achieves robustness in the response by applying a bounded function on the unscaled deviance components.</p>
+
+
+<h3>Usage</h3>
+
+<pre>glmrob.nb(y, X, bounding.func="T/T", c.tukey.beta=5, c.tukey.sig=3, offset=rep(0,length(y)))</pre>
+
+
+<h3>Arguments</h3>
+
+<table summary="R argblock">
+<tr valign="top"><td><code>y</code></td>
+<td>
+<p>The count response variable consisting of non-negative integers.</p>
+</td></tr>
+<tr valign="top"><td><code>X</code></td>
+<td>
+<p>The matrix of covariates. Number of rows must match the length of <code>y</code>.</p>
+</td></tr>
+<tr valign="top"><td><code>bounding.func</code></td>
+<td>
+<p>The bounded functions applied either on the Pearson residuals or on the deviance components; choice among <code>"T/T"</code>, <code>"HA/HA"</code> and <code>"BY/T"</code>. See Details below.</p>
+</td></tr>
+<tr valign="top"><td><code>c.tukey.beta, c.tukey.sig</code></td>
+<td>
+<p>Tuning constants for Tukey's biweight function, for the robust M-estimations of beta and sigma respectively. Both have an impact for <code>bounding.func="T/T"</code> while <code>c.tukey.sig</code> has also an impact for <code>bounding.func="BY/T"</code>.</p>
+</td></tr>
+<tr valign="top"><td><code>a.hampel.beta, b.hampel.beta, c.hampel.beta, a.hampel.sig, b.hampel.sig, c.hampel.sig</code></td>
+<td>
+<p>Tuning constants <code>a</code>, <code>b</code> and <code>c</code> for Hampel's three part function, for the robust M-estimations of beta and sigma respectively. Have an impact only for <code>bounding.func="HA/HA"</code>.</p>
+</td></tr>
+<tr valign="top"><td><code>c.by.beta</code></td>
+<td>
+<p>Tuning constant used for Bianco and Yohai's function. Has an impact only for <code>bounding.func="BY/T"</code>.</p>
+</td></tr>
+<tr valign="top"><td><code>weights.on.x</code></td>
+<td>
+<p>Weights on the design. Choice among <code>"none"</code>, all equal to one, and <code>"hard"</code>, hard-rejection weights based on robust Mahalanobis distances.</p>
+</td></tr>
+<tr valign="top"><td><code>offset</code></td>
+<td>
+<p>A vector of length <code>length(y)</code> to be directly added to the linear predictor, that is a covariate whose coefficient is set to 1.</p>
+</td></tr>
+</table>
+
+
+
+<h3>Details</h3>
+
+<p>The function computes robust M-estimates of the regression parameter beta and the overdispersion parameter sigma of the negative binomial (generalized linear) model. The user can choose among three set of estimators: <code>T/T</code> applies Tukey's biweight function on the Pearson residuals for estimating both beta and sigma; <code>HA/HA</code> uses Hampel's three part function on the Pearson residuals for both beta and sigma; <code>BY/T</code> applies Bianco and Yohai's function on the unscaled deviance components for estimating beta and uses Tukey's biweight for sigma.
+</p>
+<p>The parameterization used here is such that the conditional variance of the response given the covariates is mu+sigma*mu^2, so that the Poisson distribution is a limiting case when sigma tends to 0.  The sigma considered here is thus the inverse of the theta considered in <code>glm.nb</code> from the <code>MASS</code> package.</p>
+
+
+<h3>Value</h3>
+
+<p>The function returns a list with following components:
+</p>
+<table summary="R valueblock">
+<tr valign="top"><td><code>coef</code></td>
+<td>
+<p>a vector whose first element is the estimate for sigma, followed by the intercept and by the covariates estimates.</p>
+</td></tr>
+<tr valign="top"><td><code>stdev</code></td>
+<td>
+<p>a vector consisting of the standard errors of the estimates of beta.</p>
+</td></tr>
+<tr valign="top"><td><code>weights.y</code></td>
+<td>
+<p>a vector of length <code>length(y)</code> consisting of the resulting weights on the response.</p>
+</td></tr>
+<tr valign="top"><td><code>weights.x</code></td>
+<td>
+<p>a vector of length <code>length(y)</code> consisting of the resulting weights on the design.</p>
+</td></tr>
+</table>
+
+
+<h3>Author(s)</h3>
+
+<p>William H. Aeberhard, <a href="mailto:william.aeberhard@gmail.com">william.aeberhard@gmail.com</a>
+</p>
+
+
+<h3>References</h3>
+
+<p>Aeberhard, W. H., Cantoni, E., Heritier, S. (2014) Robust Inference in the Negative Binomial Regression Model with an Application to Falls Data. <EM>Biometrics</EM> <B>70, </B> 920&ndash;931.
+</p>
+<p>Bianco, A. M., Yohai, V. J. (1996) Robust estimation in the logistic regression model. In <EM>Robust Statistics, Data Analysis, and Computer Intensive Methods</EM>, H. Rieder (ed), 17&ndash;34, New York: Springer-Verlag.
+</p>
+<p>Cantoni, E., Ronchetti, E. (2001) Robust Inference for Generalized Linear Models. <EM>JASA</EM> <B>96,</B> 1022&ndash;1030.
+</p>
+
+
+</body></html>
