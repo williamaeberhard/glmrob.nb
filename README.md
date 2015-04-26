@@ -5,15 +5,6 @@ The glmrob.nb R code comes as a Supplementary Material to the article by Aeberha
 
 Updates of the attached R code can be found at https://github.com/williamaeberhard. Requests/comments/bug reports should be sent to william.aeberhard@gmail.com.
 
-### Version History
-
-This is glmrob.nb version 0.1. The following changes were made from the original version available at the Biometrics website on Wiley Online Library:
-
-* Added explicit argument "offset" to the main function, with as default value is a vector of ones. Argument referenced in help.glmrob.nb.html.
-* Deleted handling of "..." in the main function until more tests assess that all relevant arguments are correctly passed to all glm() and lm().
-
-Tested on R version 3.0.2.
-
 ### Contents
 
 Files contained in this repository:
@@ -25,6 +16,15 @@ Files contained in this repository:
 * DataSimulationEstimation.r: a script allowing to source the glmrob.nb function, simulate data at the postulated model, fit a negative binomial model to these data according to the MLE and the developed robust estimators, contaminate the data by adding a positive integer to a random proportion of the response vector, and fit the model on these contaminated data for illustration purposes.
 
 * this README file.
+
+### Version History
+
+This is glmrob.nb version 0.1. The following changes were made from the original version available at the Biometrics website on Wiley Online Library:
+
+* Added explicit argument "offset" to the main function, with as default value is a vector of ones. Argument referenced in help.glmrob.nb.html.
+* Deleted handling of "..." in the main function until more tests assess that all relevant arguments are correctly passed to all glm() and lm().
+
+Tested on R version 3.0.2.
 
 ### References
 
