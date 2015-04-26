@@ -21,7 +21,7 @@ Files contained in this repository:
 
 This is glmrob.nb version 0.1. The following changes were made from the original version available at the Biometrics website on Wiley Online Library:
 
-* Added explicit argument "offset" to the main function, with as default value is a vector of ones. Argument referenced in help.glmrob.nb.html.
+* Added explicit argument "offset" to the main function, with default value being a vector of ones. Argument referenced in help.glmrob.nb.html.
 * Deleted handling of "..." in the main function until more tests assess that all relevant arguments are correctly passed to all glm() and lm().
 
 Tested on R version 3.0.2.
