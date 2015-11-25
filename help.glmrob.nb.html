@@ -21,7 +21,7 @@ glmrob.nb(y, X, bounding.func = "T/T", offset = rep(0,length(y)), weights.on.x =
           c.tukey.beta = 4, c.tukey.sig = 4, c.by.beta = 4,
           a.hampel.beta = 3, b.hampel.beta = 4, c.hampel.beta = 5,
           a.hampel.sig = 3, b.hampel.sig = 4, c.hampel.sig = 5,
-          minsig = 1e-2, maxsig = 50, minmu = 1e-10, maxmu = 1e120,
+          param.ini, minsig = 1e-2, maxsig = 50, minmu = 1e-10, maxmu = 1e120,
           maxit = 30, maxit.sig = 50, sig.prec = 1e-8, tol = 1e-4)
 </pre>
 
@@ -64,6 +64,10 @@ glmrob.nb(y, X, bounding.func = "T/T", offset = rep(0,length(y)), weights.on.x =
 <tr valign="top"><td><code>a.hampel.beta, b.hampel.beta, c.hampel.beta, a.hampel.sig, b.hampel.sig, c.hampel.sig</code></td>
 <td>
 <p>Tuning constants <code>a</code>, <code>b</code> and <code>c</code> for Hampel's three part function, for the robust M-estimations of beta and sigma respectively. Have an impact only for <code>bounding.func = "HA/HA"</code>.</p>
+</td></tr>
+<tr valign="top"><td><code>param.ini</code></td>
+<td>
+<p>An optional vector of starting values for <code>c(sigma, beta)</code> (in that order). If missing, the MLE is computed as starting values for the robust estimates.</p>
 </td></tr>
 <tr valign="top"><td><code>minsig, maxsig</code></td>
 <td>

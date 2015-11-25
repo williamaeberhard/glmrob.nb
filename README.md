@@ -16,7 +16,7 @@ Files contained in this repository:
 
 ### Version History
 
-This is glmrob.nb version 0.2. The following changes were made from the original version available at the Biometrics website on Wiley Online Library:
+This is glmrob.nb version 0.3. The following changes were made from the original version available at the Biometrics website on Wiley Online Library:
 
 * Added explicit argument "offset" to the main function, with default value being a vector of ones. Argument referenced in html help file.
 * Deleted handling of "..." in the main function until more tests assess that all relevant arguments are correctly passed to all internal functions.
@@ -24,6 +24,7 @@ This is glmrob.nb version 0.2. The following changes were made from the original
 * All optional arguments are now documented in the html help file.
 * Corrected some bugs related to how the weights on the design were passed on to some internal functions.
 * Added optional arguments through a list in "options.wx" controlling some tuning aspects of the weights on the design (when not all set to one).
+* Added optional argument "param.ini" to bypass ML starting values and use user-supplied instead.
 
 Tested on R version 3.2.2.
 
