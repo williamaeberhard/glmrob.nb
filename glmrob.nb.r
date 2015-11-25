@@ -2,7 +2,7 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
                       options.wx=list(mve.nobs=floor(length(y)*0.8),p.chisq=0.95),
                       c.tukey.beta=5,c.tukey.sig=5,c.by.beta=4,a.hampel.beta=3,
                       b.hampel.beta=4,c.hampel.beta=5,a.hampel.sig=3,b.hampel.sig=4,
-                      c.hampel.sig=5,minsig=1e-2,maxsig=50,minmu=1e-10,maxmu=1e120,
+                      c.hampel.sig=5,param.ini,minsig=1e-2,maxsig=50,minmu=1e-10,maxmu=1e120,
                       maxit=30,maxit.sig=50,sig.prec=1e-8,tol=1e-4){
   ### glmrob.nb version 0.2, updated 2015-11-24
   ### Written by William H. Aeberhard, william.aeberhard@gmail.com
@@ -37,47 +37,14 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
   derivinvlink <- function(etai){exp(etai)}
   varfunc <- function(mu,sig){mu+sig*mu^2}
   # initial mu computed through Poisson GLM
-  glm.ini <- glm(y~X,family='poisson',offset=offset)
-  eta <- glm.ini$lin
-  mu <- invlink(eta)
-  mu[which(mu>maxmu)] <- maxmu
-  mu[which(mu<minmu)] <- minmu
-  # sig MLE based on initial mu, with starting value = moment based
-  sig <- sum((y/mu-1)^2)/length(y)
-  loglkhd.sig1 <- 0
-  loglkhd.sig0 <- loglkhd.sig1+tol+1
-  it.sig <- 0
-  while (abs(loglkhd.sig1-loglkhd.sig0)>tol & it.sig<maxit){
-    loglkhd.sig0 <- loglkhd(sig=sig,y=y,mu=mu)
-    sig <- sig-score.sig.ML(sig=sig,y=y,mu=mu)/info.sig.ML(sig=sig,y=y,mu=mu)
-    sig <- abs(sig)
-    if (sig>maxsig){sig <- maxsig}
-    loglkhd.sig1 <- loglkhd(sig=sig,y=y,mu=mu)
-    it.sig <- it.sig+1
-  }
-  # ML estimations of mu and sig
-  full.loglkhd1 <- 0
-  full.loglkhd0 <- full.loglkhd1+tol+1
-  it <- 0
-  while(abs(full.loglkhd1-full.loglkhd0)>tol & it<maxit){
-    full.loglkhd0 <- full.loglkhd1
-    # mu
-    loglkhd.mu1 <- 0
-    loglkhd.mu0 <- loglkhd.mu1+tol+1
-    it.mu <- 0
-    while(abs(loglkhd.mu1-loglkhd.mu0)>tol & it.mu<maxit){
-      loglkhd.mu0 <- loglkhd.mu1
-      w.mat <- 1/((derivlink(mu))^2*varfunc(mu,sig))
-      z <- eta+(y-mu)*derivlink(mu)
-      wls <- lm(z~X,weights=w.mat,offset=offset)
-      eta <- fitted(wls)
-      mu <- invlink(eta)
-      mu[which(mu>maxmu)] <- maxmu
-      mu[which(mu<minmu)] <- minmu
-      loglkhd.mu1 <- loglkhd(y=y,sig=sig,mu=mu)
-      it.mu <- it.mu+1
-    }
-    # sigma
+  if (missing(param.ini)){
+    glm.ini <- glm(y~X,family='poisson',offset=offset)
+    eta <- glm.ini$lin
+    mu <- invlink(eta)
+    mu[which(mu>maxmu)] <- maxmu
+    mu[which(mu<minmu)] <- minmu
+    # sig MLE based on initial mu, with starting value = moment based
+    sig <- sum((y/mu-1)^2)/length(y)
     loglkhd.sig1 <- 0
     loglkhd.sig0 <- loglkhd.sig1+tol+1
     it.sig <- 0
@@ -89,8 +56,50 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
       loglkhd.sig1 <- loglkhd(sig=sig,y=y,mu=mu)
       it.sig <- it.sig+1
     }
-    full.loglkhd1 <- loglkhd(y=y,sig=sig,mu=mu)
-    it <- it+1
+    # ML estimations of mu and sig
+    full.loglkhd1 <- 0
+    full.loglkhd0 <- full.loglkhd1+tol+1
+    it <- 0
+    while(abs(full.loglkhd1-full.loglkhd0)>tol & it<maxit){
+      full.loglkhd0 <- full.loglkhd1
+      # mu
+      loglkhd.mu1 <- 0
+      loglkhd.mu0 <- loglkhd.mu1+tol+1
+      it.mu <- 0
+      while(abs(loglkhd.mu1-loglkhd.mu0)>tol & it.mu<maxit){
+        loglkhd.mu0 <- loglkhd.mu1
+        w.mat <- 1/((derivlink(mu))^2*varfunc(mu,sig))
+        z <- eta+(y-mu)*derivlink(mu)
+        wls <- lm(z~X,weights=w.mat,offset=offset)
+        eta <- fitted(wls)
+        mu <- invlink(eta)
+        mu[which(mu>maxmu)] <- maxmu
+        mu[which(mu<minmu)] <- minmu
+        loglkhd.mu1 <- loglkhd(y=y,sig=sig,mu=mu)
+        it.mu <- it.mu+1
+      }
+      # sigma
+      loglkhd.sig1 <- 0
+      loglkhd.sig0 <- loglkhd.sig1+tol+1
+      it.sig <- 0
+      while (abs(loglkhd.sig1-loglkhd.sig0)>tol & it.sig<maxit){
+        loglkhd.sig0 <- loglkhd(sig=sig,y=y,mu=mu)
+        sig <- sig-score.sig.ML(sig=sig,y=y,mu=mu)/info.sig.ML(sig=sig,y=y,mu=mu)
+        sig <- abs(sig)
+        if (sig>maxsig){sig <- maxsig}
+        loglkhd.sig1 <- loglkhd(sig=sig,y=y,mu=mu)
+        it.sig <- it.sig+1
+      }
+      full.loglkhd1 <- loglkhd(y=y,sig=sig,mu=mu)
+      it <- it+1
+    }
+  } else { # use supplied initial values
+    if (length(param.ini)!=dim(X)[2]+2){stop('length(param.ini) should be number of covariates + 1 for the intercept + 1 for sigma.')}
+    sig <- param.ini[1]
+    eta <- as.numeric(cbind(onevec,X)%*%param.ini[-1])
+    mu <- invlink(eta)
+    mu[which(mu>maxmu)] <- maxmu
+    mu[which(mu<minmu)] <- minmu
   }
   #----------------------------------------------------------------------------
   # Robust estimations
