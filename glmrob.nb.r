@@ -4,20 +4,25 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
                       b.hampel.beta=4,c.hampel.beta=5,a.hampel.sig=3,b.hampel.sig=4,
                       c.hampel.sig=5,param.ini,minsig=1e-2,maxsig=50,minmu=1e-10,maxmu=1e120,
                       maxit=30,maxit.sig=50,sig.prec=1e-8,tol=1e-4){
-  ### glmrob.nb version 0.2, updated 2015-11-24
+  ### glmrob.nb version 0.4, updated 2016-12-16
   ### Written by William H. Aeberhard, william.aeberhard@gmail.com
   ## Disclaimer: Users of these routines are cautioned that, while due care has
   ## been taken and they are believed accurate, they have not been rigorously
   ## tested and their use and results are solely the responsibilities of the user.
   #----------------------------------------------------------------------------
-  # General set up
+  # General set up, branch if X=rep(1,n)
   #----------------------------------------------------------------------------
   n <- length(y)
-  X <- as.matrix(X)
-  if (dim(X)[1]!=n){stop('length(y) does not match dim(X)[1].')}
   onevec <- rep(1,n)
-  if (identical(X[,1],onevec)){X <- X[,-1]}
   res <- list()
+  if (identical(X,onevec)){ # intercept only
+    interceptonly <- TRUE
+  } else {# intercept + at least 1 covariate
+    interceptonly <- FALSE
+    X <- as.matrix(X)
+    if (dim(X)[1]!=n){stop('length(y) does not match dim(X)[1].')}
+    if (identical(X[,1],onevec)){X <- X[,-1]}
+  }
   #----------------------------------------------------------------------------
   # initial estimates: MLEs for beta and sigma
   #----------------------------------------------------------------------------
@@ -38,13 +43,17 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
   varfunc <- function(mu,sig){mu+sig*mu^2}
   # initial mu computed through Poisson GLM
   if (missing(param.ini)){
-    glm.ini <- glm(y~X,family='poisson',offset=offset)
+    if (interceptonly){
+      glm.ini <- glm(y~1,family='poisson',offset=offset)
+    } else {
+      glm.ini <- glm(y~X,family='poisson',offset=offset)
+    }
     eta <- glm.ini$lin
     mu <- invlink(eta)
     mu[which(mu>maxmu)] <- maxmu
     mu[which(mu<minmu)] <- minmu
     # sig MLE based on initial mu, with starting value = moment based
-    sig <- sum((y/mu-1)^2)/length(y)
+    sig <- sum((y/mu-1)^2)/n
     loglkhd.sig1 <- 0
     loglkhd.sig0 <- loglkhd.sig1+tol+1
     it.sig <- 0
@@ -70,7 +79,11 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
         loglkhd.mu0 <- loglkhd.mu1
         w.mat <- 1/((derivlink(mu))^2*varfunc(mu,sig))
         z <- eta+(y-mu)*derivlink(mu)
-        wls <- lm(z~X,weights=w.mat,offset=offset)
+        if (interceptonly){
+          wls <- lm(z~1,weights=w.mat,offset=offset)
+        } else {
+          wls <- lm(z~X,weights=w.mat,offset=offset)
+        }
         eta <- fitted(wls)
         mu <- invlink(eta)
         mu[which(mu>maxmu)] <- maxmu
@@ -94,9 +107,18 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
       it <- it+1
     }
   } else { # use supplied initial values
-    if (length(param.ini)!=dim(X)[2]+2){stop('length(param.ini) should be number of covariates + 1 for the intercept + 1 for sigma.')}
+    if (interceptonly){
+      if (length(param.ini)!=2){
+        stop('length(param.ini) should be 1 for the intercept + 1 for sigma.')
+      }
+      eta <- rep(param.ini[2],n)
+    } else {
+      if (length(param.ini)!=dim(X)[2]+2){
+        stop('length(param.ini) should be number of covariates + 1 for the intercept + 1 for sigma.')
+      }
+      eta <- as.numeric(cbind(onevec,X)%*%param.ini[-1])
+    }
     sig <- param.ini[1]
-    eta <- as.numeric(cbind(onevec,X)%*%param.ini[-1])
     mu <- invlink(eta)
     mu[which(mu>maxmu)] <- maxmu
     mu[which(mu<minmu)] <- minmu
@@ -104,15 +126,22 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
   #----------------------------------------------------------------------------
   # Robust estimations
   #----------------------------------------------------------------------------
-  if (weights.on.x=='none'){
+  if (interceptonly){
+    if (weights.on.x!='none'){
+      stop('Only weights.on.x="none" allowed for X = a single column of ones.')
+    }
     weights.x <- onevec
-  } else if (weights.on.x=='hard'){
-    require(MASS) # for cov.rob
-    Xrc <- cov.rob(X,quantile.used=options.wx$mve.nobs)
-    D2 <- mahalanobis(X,center=Xrc$center,cov=Xrc$cov) # copied from robustbase:::wts_RobDist
-    qchi2 <- qchisq(p=options.wx$p.chisq,df=dim(X)[2])
-    weights.x <- ifelse(D2<=qchi2,1,0)
-  } else {stop('Only "hard" and "none" are implemented for weights.on.x.')}
+  } else {
+    if (weights.on.x=='none'){
+      weights.x <- onevec
+    } else if (weights.on.x=='hard'){
+      require(MASS) # for cov.rob
+      Xrc <- cov.rob(X,quantile.used=options.wx$mve.nobs)
+      D2 <- mahalanobis(X,center=Xrc$center,cov=Xrc$cov) # copied from robustbase:::wts_RobDist
+      qchi2 <- qchisq(p=options.wx$p.chisq,df=dim(X)[2])
+      weights.x <- ifelse(D2<=qchi2,1,0)
+    } else {stop('Only "hard" and "none" are implemented for weights.on.x.')}
+  }
   psi.sig.ML <- function(r,mu,sig){
     digamma(r*sqrt(mu*(sig*mu+1))+mu+1/sig)-sig*r*sqrt(mu/(sig*mu+1))+
       -digamma(1/sig)-log(sig*mu+1)
@@ -203,7 +232,11 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
           sapply(X=mu,FUN=E.tukeypsi.2,sig=sig,c.tukey=c.tukey.beta)*
           varfunc(mu,sig)*derivlink(mu)
         zi <- eta + ei
-        wls <- lm(zi~X,weights=bi,offset=offset)
+        if (interceptonly){
+          wls <- lm(zi~1,weights=bi,offset=offset)
+        } else {
+          wls <- lm(zi~X,weights=bi,offset=offset)
+        }
         beta1 <- coef(wls)
         eta <- fitted(wls)
         mu <- invlink(eta)
@@ -316,26 +349,40 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
       }
       return(expec)
     }
-    X <- cbind(onevec,X)
-    eta <- X%*%beta1+offset
-    mu <- invlink(eta)
-    ## evaluate all expectations at each mui
-    expect <- sapply(X=mu,FUN=all.expectations.tukey,sigma=sig,
-                     c.tukey.beta=c.tukey.beta,c.tukey.sigma=c.tukey.sig)
-    ## compute all blocks of M and Q
-    M11 <- t(X)%*%diag(as.numeric(unlist(expect['tukeypsi2',])*
-                                    derivinvlink(eta)^2*weights.x))%*%X/n
-    M12 <- as.numeric(t(X)%*%(unlist(expect['psibetascoresig.beta',])*
-                                derivinvlink(eta)*weights.x))/n
-    M21 <- t(as.numeric(t(X)%*%(unlist(expect['psibetascoresig.sigma',])*
-                                  derivinvlink(eta)*weights.x)))/n
-    M22 <- t(weights.x)%*%unlist(expect['psiscoresig2',])/n
-    Q11 <- t(X)%*%diag(as.numeric(unlist(expect['tukeypsi13',])*
-                                    (derivinvlink(eta)*weights.x)^2))%*%X/n
-    Q12 <- as.numeric(t(X)%*%(unlist(expect['psibetaminuspsisig',])*
-                                derivinvlink(eta)*weights.x^2))/n
+    if (interceptonly){
+      eta <- rep(beta1,n)+offset
+      mu <- invlink(eta)
+      ## evaluate all expectations at each mui
+      expect <- sapply(X=mu,FUN=all.expectations.tukey,sigma=sig,
+                       c.tukey.beta=c.tukey.beta,c.tukey.sigma=c.tukey.sig)
+      ## compute all blocks of M and Q
+      M11 <- as.numeric(sum(unlist(expect['tukeypsi2',])*derivinvlink(eta)^2*weights.x))/n
+      M12 <- as.numeric(sum(unlist(expect['psibetascoresig.beta',])*derivinvlink(eta)*weights.x))/n
+      M21 <- as.numeric(sum(unlist(expect['psibetascoresig.sigma',])*derivinvlink(eta)*weights.x))/n
+      Q11 <- as.numeric(sum(unlist(expect['tukeypsi13',])*(derivinvlink(eta)*weights.x)^2))/n
+      Q12 <- as.numeric(sum(unlist(expect['psibetaminuspsisig',])*derivinvlink(eta)*weights.x^2))/n
+    } else {
+      X <- cbind(onevec,X)
+      eta <- X%*%beta1+offset
+      mu <- invlink(eta)
+      ## evaluate all expectations at each mui
+      expect <- sapply(X=mu,FUN=all.expectations.tukey,sigma=sig,
+                       c.tukey.beta=c.tukey.beta,c.tukey.sigma=c.tukey.sig)
+      ## compute all blocks of M and Q
+      M11 <- t(X)%*%diag(as.numeric(unlist(expect['tukeypsi2',])*
+                                      derivinvlink(eta)^2*weights.x))%*%X/n
+      M12 <- as.numeric(t(X)%*%(unlist(expect['psibetascoresig.beta',])*
+                                  derivinvlink(eta)*weights.x))/n
+      M21 <- t(as.numeric(t(X)%*%(unlist(expect['psibetascoresig.sigma',])*
+                                    derivinvlink(eta)*weights.x)))/n
+      Q11 <- t(X)%*%diag(as.numeric(unlist(expect['tukeypsi13',])*
+                                      (derivinvlink(eta)*weights.x)^2))%*%X/n
+      Q12 <- as.numeric(t(X)%*%(unlist(expect['psibetaminuspsisig',])*
+                                  derivinvlink(eta)*weights.x^2))/n
+    }
+    M22 <- as.numeric(t(weights.x)%*%unlist(expect['psiscoresig2',]))/n
     # Q21 <- t(Q12) # Q is always symmetric
-    Q22 <- t(weights.x^2)%*%unlist(expect['psiscoresig13',])/n
+    Q22 <- as.numeric(t(weights.x^2)%*%unlist(expect['psiscoresig13',]))/n
     ## stdev from diag of full sandwich M^(-1)*Q*M^(-T)
     fullM <- rbind(cbind(M11,M12),t(c(M21,M22)))
     fullQ <- rbind(cbind(Q11,Q12),t(c(Q12,Q22)))
@@ -466,7 +513,11 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
           sapply(X=mu,FUN=E.psi.by.2,cc=c.by.beta,sig=sig)*varfunc(mu,sig)*
           derivlink(mu)
         zi <- eta+ei
-        wls <- lm(zi~X,weights=bi,offset=offset)
+        if (interceptonly){
+          wls <- lm(zi~1,weights=bi,offset=offset)
+        } else {
+          wls <- lm(zi~X,weights=bi,offset=offset)
+        }
         beta1 <- coef(wls)
         eta <- fitted(wls)
         mu <- invlink(eta)
@@ -550,25 +601,38 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
       }
       return(expec)
     }
-    X <- cbind(onevec,X)
-    eta <- X%*%beta1+offset
-    mu <- invlink(eta)
-    expect <- sapply(X=mu,FUN=all.expectations.BY,sigma=sig,c.by.b=c.by.beta,
-                     c.tukey.s=c.tukey.sig)
-    ## compute all blocks of M and Q
-    M11 <- t(X)%*%diag(as.numeric(unlist(expect['bypsi2',])*
-                                    derivinvlink(eta)^2*weights.x))%*%X/n
-    M12 <- as.numeric(t(X)%*%(unlist(expect['psibetascoresig.beta',])*
-                                derivinvlink(eta)*weights.x))/n
-    M21 <- t(as.numeric(t(X)%*%(unlist(expect['psibetascoresig.sigma',])*
-                                  derivinvlink(eta)*weights.x)))/n
+    if (interceptonly){
+      eta <- rep(beta1,n)+offset
+      mu <- invlink(eta)
+      expect <- sapply(X=mu,FUN=all.expectations.BY,sigma=sig,c.by.b=c.by.beta,
+                       c.tukey.s=c.tukey.sig)
+      ## compute all blocks of M and Q
+      M11 <- as.numeric(sum(unlist(expect['bypsi2',])*derivinvlink(eta)^2*weights.x))/n
+      M12 <- as.numeric(sum(unlist(expect['psibetascoresig.beta',])*derivinvlink(eta)*weights.x))/n
+      M21 <- as.numeric(sum(unlist(expect['psibetascoresig.sigma',])*derivinvlink(eta)*weights.x))/n
+      Q11 <- as.numeric(sum(unlist(expect['bypsi13',])*(derivinvlink(eta)*weights.x)^2))/n
+      Q12 <- as.numeric(sum(unlist(expect['psibetaminuspsisig',])*derivinvlink(eta)*weights.x^2))/n
+    } else {
+      X <- cbind(onevec,X)
+      eta <- X%*%beta1+offset
+      mu <- invlink(eta)
+      expect <- sapply(X=mu,FUN=all.expectations.BY,sigma=sig,c.by.b=c.by.beta,
+                       c.tukey.s=c.tukey.sig)
+      ## compute all blocks of M and Q
+      M11 <- t(X)%*%diag(as.numeric(unlist(expect['bypsi2',])*
+                                      derivinvlink(eta)^2*weights.x))%*%X/n
+      M12 <- as.numeric(t(X)%*%(unlist(expect['psibetascoresig.beta',])*
+                                  derivinvlink(eta)*weights.x))/n
+      M21 <- t(as.numeric(t(X)%*%(unlist(expect['psibetascoresig.sigma',])*
+                                    derivinvlink(eta)*weights.x)))/n
+      Q11 <- t(X)%*%diag(as.numeric(unlist(expect['bypsi13',])*
+                                      (derivinvlink(eta)*weights.x)^2))%*%X/n
+      Q12 <- as.numeric(t(X)%*%(unlist(expect['psibetaminuspsisig',])*
+                                  derivinvlink(eta)*weights.x^2))/n
+    }
     M22 <- t(weights.x)%*%unlist(expect['psiscoresig2',])/n
-    Q11 <- t(X)%*%diag(as.numeric(unlist(expect['bypsi13',])*
-                                    (derivinvlink(eta)*weights.x)^2))%*%X/n
-    Q12 <- as.numeric(t(X)%*%(unlist(expect['psibetaminuspsisig',])*
-                                derivinvlink(eta)*weights.x^2))/n
     # Q21 <- t(Q12) # Q is always symmetric
-    Q22 <- t(weights.x^2)%*%unlist(expect['psiscoresig13',])/n
+    Q22 <- as.numeric(t(weights.x^2)%*%unlist(expect['psiscoresig13',]))/n
     ## stdev from diag of full sandwich M^(-1)*Q*M^(-T)
     fullM <- rbind(cbind(M11,M12),t(c(M21,M22)))
     fullQ <- rbind(cbind(Q11,Q12),t(c(Q12,Q22)))
@@ -916,7 +980,11 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
                  b.hampel=b.hampel.beta,c.hampel=c.hampel.beta)*
           varfunc(mu,sig)*derivlink(mu)
         zi <- eta+ei
-        wls <- lm(zi~X,weights=bi,offset=offset)
+        if (interceptonly){
+          wls <- lm(zi~1,weights=bi,offset=offset)
+        } else {
+          wls <- lm(zi~X,weights=bi,offset=offset)
+        }
         beta1 <- coef(wls)
         eta <- fitted(wls)
         mu <- invlink(eta)
@@ -1013,28 +1081,44 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
         -sum(hampel.res.s/res.s*fullscoresig.s*pnb16.s)^2
       return(expec)
     }
-    X <- cbind(onevec,X)
-    eta <- X%*%beta1+offset
-    mu <- invlink(eta)
-    is.whole <- function(x,tol=1e-8){abs(x-round(x))<tol}
-    mu <- ifelse(is.whole(mu),mu+1e-8,mu) # we don't allow exact integers for mu, otherwise may divide by 0
-    expect <- sapply(X=mu,FUN=all.expectations.hampel,sigma=sig,
-                     tuning.b=c(a.hampel.beta,b.hampel.beta,c.hampel.beta),
-                     tuning.s=c(a.hampel.sig,b.hampel.sig,c.hampel.sig))
-    ## compute all blocks of M and Q
-    M11 <- t(X)%*%diag(as.numeric(unlist(expect['hampelpsi2',])*
-                                    derivinvlink(eta)^2*weights.x))%*%X/n
-    M12 <- as.numeric(t(X)%*%(unlist(expect['psibetascoresig.beta',])*
-                                derivinvlink(eta)*weights.x))/n
-    M21 <- t(as.numeric(t(X)%*%(unlist(expect['psibetascoresig.sigma',])*
-                                  derivinvlink(eta)*weights.x)))/n
+    if (interceptonly){
+      eta <- rep(beta1,n)+offset
+      mu <- invlink(eta)
+      is.whole <- function(x,tol=1e-8){abs(x-round(x))<tol}
+      mu <- ifelse(is.whole(mu),mu+1e-8,mu) # we don't allow exact integers for mu, otherwise may divide by 0
+      expect <- sapply(X=mu,FUN=all.expectations.hampel,sigma=sig,
+                       tuning.b=c(a.hampel.beta,b.hampel.beta,c.hampel.beta),
+                       tuning.s=c(a.hampel.sig,b.hampel.sig,c.hampel.sig))
+      ## compute all blocks of M and Q
+      M11 <- as.numeric(sum(unlist(expect['hampelpsi2',])*derivinvlink(eta)^2*weights.x))/n
+      M12 <- as.numeric(sum(unlist(expect['psibetascoresig.beta',])*derivinvlink(eta)*weights.x))/n
+      M21 <- as.numeric(sum(unlist(expect['psibetascoresig.sigma',])*derivinvlink(eta)*weights.x))/n
+      Q11 <- as.numeric(sum(unlist(expect['hampelpsi13',])*(derivinvlink(eta)*weights.x)^2))/n
+      Q12 <- as.numeric(sum(unlist(expect['psibetaminuspsisig',])*derivinvlink(eta)*weights.x^2))/n
+    } else {
+      X <- cbind(onevec,X)
+      eta <- X%*%beta1+offset
+      mu <- invlink(eta)
+      is.whole <- function(x,tol=1e-8){abs(x-round(x))<tol}
+      mu <- ifelse(is.whole(mu),mu+1e-8,mu) # we don't allow exact integers for mu, otherwise may divide by 0
+      expect <- sapply(X=mu,FUN=all.expectations.hampel,sigma=sig,
+                       tuning.b=c(a.hampel.beta,b.hampel.beta,c.hampel.beta),
+                       tuning.s=c(a.hampel.sig,b.hampel.sig,c.hampel.sig))
+      ## compute all blocks of M and Q
+      M11 <- t(X)%*%diag(as.numeric(unlist(expect['hampelpsi2',])*
+                                      derivinvlink(eta)^2*weights.x))%*%X/n
+      M12 <- as.numeric(t(X)%*%(unlist(expect['psibetascoresig.beta',])*
+                                  derivinvlink(eta)*weights.x))/n
+      M21 <- t(as.numeric(t(X)%*%(unlist(expect['psibetascoresig.sigma',])*
+                                    derivinvlink(eta)*weights.x)))/n
+      Q11 <- t(X)%*%diag(as.numeric(unlist(expect['hampelpsi13',])*
+                                      (derivinvlink(eta)*weights.x)^2))%*%X/n
+      Q12 <- as.numeric(t(X)%*%(unlist(expect['psibetaminuspsisig',])*
+                                  derivinvlink(eta)*weights.x^2))/n
+    }
     M22 <- t(weights.x)%*%unlist(expect['psiscoresig2',])/n
-    Q11 <- t(X)%*%diag(as.numeric(unlist(expect['hampelpsi13',])*
-                                    (derivinvlink(eta)*weights.x)^2))%*%X/n
-    Q12 <- as.numeric(t(X)%*%(unlist(expect['psibetaminuspsisig',])*
-                                derivinvlink(eta)*weights.x^2))/n
     # Q21 <- t(Q12) # Q is always symmetric
-    Q22 <- t(weights.x^2)%*%unlist(expect['psiscoresig13',])/n
+    Q22 <- as.numeric(t(weights.x^2)%*%unlist(expect['psiscoresig13',]))/n
     ## stdev from diag of full sandwich M^(-1)*Q*M^(-T)
     fullM <- rbind(cbind(M11,M12),t(c(M21,M22)))
     fullQ <- rbind(cbind(Q11,Q12),t(c(Q12,Q22)))
@@ -1043,11 +1127,11 @@ glmrob.nb <- function(y,X,bounding.func='T/T',offset=rep(0,length(y)),weights.on
     res$stdev <- stdev[-length(stdev)]
     ### weights on response
     resid <- (y-mu)/sqrt(varfunc(mu,sig))
-    res$weights.y <- as.numeric(ifelse(resid==0,1,
-                                       hampelpsi(r=resid,tuning=c(a.hampel.beta,
-                                                                  b.hampel.beta,
-                                                                  c.hampel.beta))/
-                                         resid))
+    res$weights.y <- as.numeric(
+      ifelse(resid==0,1,hampelpsi(r=resid,tuning=c(a.hampel.beta,
+                                                   b.hampel.beta,
+                                                   c.hampel.beta))/resid)
+    )
     ### weights on design
     res$weights.x <- weights.x
   } else {stop('Available bounding.func are "T/T", "BY/T" and "HA/HA".')}

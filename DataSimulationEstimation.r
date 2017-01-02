@@ -1,6 +1,6 @@
 ### Supplementary R code related to "Robust Inference in the Negative Binomial Regression Model with an Application to Falls Data"
 ### by William H. Aeberhard, Eva Cantoni and Stephane Heritier
-### Updated with glmrob.nb version 0.3, 2015-11-25
+### Updated with glmrob.nb version 0.4, 2017-01-02
 
 ### Set up
 rm(list=ls())

@@ -35,7 +35,7 @@ glmrob.nb(y, X, bounding.func = "T/T", offset = rep(0,length(y)), weights.on.x =
 </td></tr>
 <tr valign="top"><td><code>X</code></td>
 <td>
-<p>The matrix of covariates. Number of rows must match the length of <code>y</code>. Missing values are not supported and the corresponding rows should be discarded beforehand.</p>
+<p>The matrix of covariates. Number of rows must match the length of <code>y</code>. Missing values are not supported and the corresponding rows should be discarded beforehand. A single vector full of ones is supported for an intercept-only model.</p>
 </td></tr>
 <tr valign="top"><td><code>bounding.func</code></td>
 <td>
@@ -127,6 +127,11 @@ glmrob.nb(y, X, bounding.func = "T/T", offset = rep(0,length(y)), weights.on.x =
 <p>a vector of length <code>length(y)</code> consisting of the resulting weights on the design.</p>
 </td></tr>
 </table>
+
+
+<h3>Note</h3>
+
+<p>This is version 0.4.</p>
 
 
 <h3>Author(s)</h3>
